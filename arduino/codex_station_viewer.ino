@@ -62,6 +62,8 @@ bool valveOpen = false;
 unsigned long valveCloseAt = 0;
 const unsigned long MAX_VALVE_DURATION = 15 * 60; // 15 minutes in seconds
 
+void publishValveStates();
+
 void setValveState(bool open, unsigned long duration = MAX_VALVE_DURATION) {
   valveOpen = open;
   digitalWrite(RELAY_PIN, open ? HIGH : LOW);
@@ -76,6 +78,7 @@ void setValveState(bool open, unsigned long duration = MAX_VALVE_DURATION) {
   } else {
     valveCloseAt = 0;
   }
+  publishValveStates();
 }
 
 unsigned long getTimestamp() {
@@ -84,6 +87,16 @@ unsigned long getTimestamp() {
     return timeClient.getEpochTime();
   }
   return millis() / 1000;
+}
+
+void publishValveStates() {
+  for (int i = 0; i < numSensors; i++) {
+    SensorConfig sensor = sensors[i];
+    if (strcmp(sensor.type, "valve-state") == 0) {
+      float val = valveOpen ? 1 : 0;
+      publishSensorReading(mqttClient, sensor.id, sensor.type, val, sensor.unit, sensor.pin);
+    }
+  }
 }
 
 void reconnectMQTT() {
@@ -110,11 +123,15 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
   const char* command = doc["command"];
   unsigned long duration = doc["duration"] | MAX_VALVE_DURATION;
 
-  if (sensorId == String(WATER_REGULATOR_1) && command) {
-    if (strcmp(command, "open") == 0 || strcmp(command, "on") == 0) {
-      setValveState(true, duration);
-    } else if (strcmp(command, "close") == 0 || strcmp(command, "off") == 0) {
-      setValveState(false);
+  for (int i = 0; i < numSensors; i++) {
+    SensorConfig sensor = sensors[i];
+    if (strcmp(sensor.type, "valve-state") == 0 && sensorId == String(sensor.id) && command) {
+      if (strcmp(command, "open") == 0 || strcmp(command, "on") == 0) {
+        setValveState(true, duration);
+      } else if (strcmp(command, "close") == 0 || strcmp(command, "off") == 0) {
+        setValveState(false);
+      }
+      break;
     }
   }
 }
@@ -176,7 +193,12 @@ void loop() {
     lastPublish = millis();
     for (int i = 0; i < numSensors; i++) {
       SensorConfig sensor = sensors[i];
-      float val = analogRead(sensor.pin); // Simplified — tailor per sensor type
+      float val;
+      if (strcmp(sensor.type, "valve-state") == 0) {
+        val = valveOpen ? 1 : 0;
+      } else {
+        val = analogRead(sensor.pin); // Simplified — tailor per sensor type
+      }
       publishSensorReading(mqttClient, sensor.id, sensor.type, val, sensor.unit, sensor.pin);
     }
   }
