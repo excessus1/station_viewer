@@ -5,19 +5,22 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
+import { Slider } from "@/components/ui/slider"
 import type { SensorReading } from "@/types/station"
 import { mqttClient } from "@/lib/mqttClient"
-import { groupSensorsPhysically, groupSensorsLogically, isDataFresh, getSensorTypeIcon } from "@/lib/sensorGrouping"
+import {
+  groupSensorsPhysically,
+  groupSensorsLogically,
+  isDataFresh,
+  getSensorTypeIcon,
+  getSensorTypeLabel,
+} from "@/lib/sensorGrouping"
 import { Activity, Wifi, WifiOff, Clock } from "lucide-react"
 
 export default function StationViewer() {
   const [sensors, setSensors] = useState<SensorReading[]>([])
   const [isConnected, setIsConnected] = useState(false)
-  const [manualTopic, setManualTopic] = useState("")
-  const [manualMessage, setManualMessage] = useState("")
+  const [valveDurations, setValveDurations] = useState<Record<string, number>>({})
 
   useEffect(() => {
     const unsubscribe = mqttClient.subscribe((reading: SensorReading) => {
@@ -42,12 +45,20 @@ export default function StationViewer() {
   const physicalGroups = groupSensorsPhysically(sensors)
   const logicalGroups = groupSensorsLogically(sensors)
 
-  const handleManualCommand = () => {
-    if (manualTopic && manualMessage) {
-      mqttClient.publish(manualTopic, manualMessage)
-      setManualTopic("")
-      setManualMessage("")
-    }
+
+  const handleValveCommand = (
+    id: string,
+    action: "open" | "close"
+  ) => {
+    const duration = valveDurations[id] ?? 300
+    const payload =
+      action === "open"
+        ? { command: "open", duration }
+        : { command: "close" }
+    mqttClient.publish(
+      `controlcore/command/${id}`,
+      JSON.stringify(payload)
+    )
   }
 
   const SensorCard = ({ sensor }: { sensor: SensorReading }) => {
@@ -62,10 +73,10 @@ export default function StationViewer() {
           <div className="flex items-center justify-between">
             <CardTitle className="text-sm font-medium flex items-center gap-2">
               <span className="text-lg">{icon}</span>
-              {sensor.enumeratorOrName || sensor.sensor_type}
+              {sensor.enumeratorOrName || sensor.sensor_id}
             </CardTitle>
             <Badge variant={isFresh ? "default" : "secondary"} className="text-xs">
-              {sensor.sensor_type}
+              {getSensorTypeLabel(sensor.sensor_type)}
             </Badge>
           </div>
         </CardHeader>
@@ -168,7 +179,7 @@ export default function StationViewer() {
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <span className="text-xl">{getSensorTypeIcon(sensorType)}</span>
-                    {sensorType} Sensors
+                    {getSensorTypeLabel(sensorType)}
                   </CardTitle>
                   <CardDescription>{sensorList.length} sensor(s) of this type</CardDescription>
                 </CardHeader>
@@ -198,51 +209,56 @@ export default function StationViewer() {
         <TabsContent value="manual" className="space-y-6">
           <Card>
             <CardHeader>
-              <CardTitle>Manual MQTT Commands</CardTitle>
+              <CardTitle>Manual Controls</CardTitle>
               <CardDescription>
-                Send direct MQTT commands to control devices. Use the sensor_id format for targeted control.
+                Tap a button below to open or close a valve. Adjust how long to keep it open.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="topic">MQTT Topic</Label>
-                  <Input
-                    id="topic"
-                    placeholder="controlcore/command/sensor_id"
-                    value={manualTopic}
-                    onChange={(e) => setManualTopic(e.target.value)}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="message">Message</Label>
-                  <Textarea
-                    id="message"
-                    placeholder='{"command": "set_value", "value": 1}'
-                    value={manualMessage}
-                    onChange={(e) => setManualMessage(e.target.value)}
-                    rows={3}
-                  />
-                </div>
-              </div>
-              <Button
-                onClick={handleManualCommand}
-                disabled={!manualTopic || !manualMessage || !isConnected}
-                className="w-full"
-              >
-                Send Command
-              </Button>
-
-              <div className="mt-6 space-y-2">
-                <h4 className="font-medium">Recent Sensor IDs (for reference):</h4>
-                <div className="bg-muted p-3 rounded-md max-h-32 overflow-y-auto">
-                  {sensors.slice(0, 10).map((sensor) => (
-                    <div key={sensor.sensor_id} className="text-sm font-mono text-muted-foreground">
-                      {sensor.sensor_id}
+              {sensors
+                .filter((s) => s.sensor_type === "valve-state")
+                .map((sensor) => (
+                  <div key={sensor.sensor_id} className="space-y-2 border rounded-md p-4">
+                    <div className="flex items-center justify-between">
+                      <span className="font-medium">
+                        {sensor.enumeratorOrName || sensor.sensor_id}
+                      </span>
+                      <span className="text-sm text-muted-foreground">
+                        {isDataFresh(sensor.timestamp) ? "" : "(stale)"}
+                      </span>
                     </div>
-                  ))}
-                </div>
-              </div>
+                    <Slider
+                      defaultValue={[5]}
+                      min={1}
+                      max={15}
+                      step={1}
+                      onValueChange={(v) =>
+                        setValveDurations({
+                          ...valveDurations,
+                          [sensor.sensor_id]: v[0] * 60,
+                        })
+                      }
+                    />
+                    <div className="text-xs text-muted-foreground">
+                      Duration: {(valveDurations[sensor.sensor_id] ?? 300) / 60} min
+                    </div>
+                    <div className="flex gap-2">
+                      <Button
+                        onClick={() => handleValveCommand(sensor.sensor_id, "open")}
+                        disabled={!isConnected}
+                      >
+                        Open
+                      </Button>
+                      <Button
+                        variant="secondary"
+                        onClick={() => handleValveCommand(sensor.sensor_id, "close")}
+                        disabled={!isConnected}
+                      >
+                        Close
+                      </Button>
+                    </div>
+                  </div>
+                ))}
             </CardContent>
           </Card>
         </TabsContent>

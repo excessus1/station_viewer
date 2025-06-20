@@ -1,6 +1,7 @@
 // lib/mqttClient.ts
 import mqtt from "mqtt"
 import type { SensorReading } from "@/types/station"
+import { parseSensorId } from "@/lib/sensorGrouping"
 
 class MQTTClient {
   private client: mqtt.MqttClient | null = null
@@ -34,9 +35,11 @@ class MQTTClient {
     this.client.on("message", (topic, payload) => {
       try {
         const raw = JSON.parse(payload.toString())
+        const parsed = parseSensorId(raw.sensor_id || "")
         const data = {
           ...raw,
-          timestamp: new Date(raw.timestamp),
+          ...parsed,
+          timestamp: new Date(Number(raw.timestamp) * 1000),
         }
         this.subscribers.forEach((cb) => cb(data))
       } catch (err) {

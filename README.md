@@ -25,7 +25,7 @@ This project includes:
 ```
 codex_station_viewer/
 ├── arduino/                   # Arduino sketch and config for the station
-│   ├── station_viewer.ino
+│   ├── codex_station_viewer.ino
 │   └── lib/ControlCore_Config.h
 ├── components/                # UI Components (cards, tabs, layout)
 ├── lib/                       # MQTT client and sensor grouping logic
@@ -48,7 +48,7 @@ Arduino publishes messages in this format to `controlcore/data/...`:
   "station": "garden-hydrant",
   "controller": "uno-r4-wifi-primary",
   "sensor_id": "excessus-home_garden-hydrant_uno-r4-wifi-primary_water-flow_BeetsTomatoes",
-  "sensor_type": "digitalPulse",
+  "sensor_type": "water-flow",
   "unit": "L/min",
   "value": 3.7,
   "pin": 2,
@@ -56,15 +56,17 @@ Arduino publishes messages in this format to `controlcore/data/...`:
 }
 ```
 
+`timestamp` values use Unix epoch seconds synchronized from NTP at startup.
+
 ---
 
 ## 🧠 Logical View Grouping
 
 Sensors are grouped by `sensor_type`, but Codex is invited to review renaming rules:
 
-- `"digitalPulse"` → `Water Flow Sensors`
-- `"analogBurst"` → `Pressure Sensors`
-- `"virtualState"` → `Valve State` or similar
+- `"water-flow"` → `Water Flow Sensors`
+- `"pressure"` → `Pressure Sensors`
+- `"valve-state"` → `Valve State`
 
 ---
 
@@ -78,9 +80,12 @@ controlcore/command/<sensor_id>
 Payload:
 ```json
 {
-  "command": "open" // or "close"
+  "command": "open", // or "close"
+  "duration": 300  // seconds the valve should remain open
 }
 ```
+
+If the duration is omitted or exceeds 900 seconds, the Arduino defaults to a 15-minute timeout to prevent accidental continuous watering.
 
 ---
 
