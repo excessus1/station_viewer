@@ -23,16 +23,19 @@ class MQTTClient {
       console.log("[MQTT] Connected to broker")
       this.isConnected = true
 
-      this.client?.subscribe("controlcore/#", (err) => {
+      this.client?.subscribe("controlcore/data/#", (err) => {
         if (err) {
           console.error("[MQTT] Subscribe failed:", err)
         } else {
-          console.log("[MQTT] Subscribed to controlcore/#")
+          console.log("[MQTT] Subscribed to controlcore/data/#")
         }
       })
     })
 
     this.client.on("message", (topic, payload) => {
+      if (!topic.startsWith("controlcore/data/")) {
+        return
+      }
       try {
         const raw = JSON.parse(payload.toString())
         const parsed = parseSensorId(raw.sensor_id || "")
