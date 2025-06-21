@@ -115,18 +115,44 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
   if (!topicStr.startsWith("controlcore/command/")) {
     return;
   }
-  String sensorId = topicStr.substring(strlen("controlcore/command/"));
+  String topicSensor = topicStr.substring(strlen("controlcore/command/"));
 
   StaticJsonDocument<2048> doc;
-  deserializeJson(doc, payload, length);
+  if (deserializeJson(doc, payload, length) != DeserializationError::Ok) {
+    return;
+  }
 
+  const char* station = doc["station"];
+  const char* controller = doc["controller"];
+  const char* sensorId = doc["sensor_id"];
+  const char* sensorType = doc["sensor_type"];
+  const char* unit = doc["unit"];
+  float value = doc["value"] | 0;
   const char* command = doc["command"];
-  unsigned long duration = doc["duration"] | MAX_VALVE_DURATION;
+
+  if (!station || !controller || !sensorId || !command) {
+    return;
+  }
+
+  if (strcmp(station, STATION_NAME) != 0 || strcmp(controller, CONTROLLER_ID) != 0) {
+    return;
+  }
+
+  if (topicSensor.length() > 0 && topicSensor != String(sensorId)) {
+    return;
+  }
 
   for (int i = 0; i < numSensors; i++) {
     SensorConfig sensor = sensors[i];
-    if (strcmp(sensor.type, "valve-state") == 0 && sensorId == String(sensor.id) && command) {
+    if (strcmp(sensor.id, sensorId) == 0 && strcmp(sensor.type, sensorType) == 0) {
       if (strcmp(command, "open") == 0 || strcmp(command, "on") == 0) {
+        unsigned long duration = MAX_VALVE_DURATION;
+        if (unit && strcmp(unit, "seconds") == 0) {
+          duration = (unsigned long)value;
+          if (duration == 0 || duration > MAX_VALVE_DURATION) {
+            duration = MAX_VALVE_DURATION;
+          }
+        }
         setValveState(true, duration);
       } else if (strcmp(command, "close") == 0 || strcmp(command, "off") == 0) {
         setValveState(false);

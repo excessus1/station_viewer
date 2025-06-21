@@ -90,8 +90,8 @@ Payload:
   "controller": "uno-r4-wifi-primary",
   "sensor_id": "excessus-home_garden-hydrant_uno-r4-wifi-primary_valve-state_BeetsTomatoes",
   "sensor_type": "valve-state",
-  "unit": "state",
-  "value": 1,
+  "unit": "seconds",
+  "value": 300,
   "command": "open",
   "source": "manual_override",
   "requestor_id": "kevin_cli",
@@ -99,7 +99,7 @@ Payload:
 }
 ```
 
-If the duration is omitted or exceeds 900 seconds, the Arduino defaults to a 15-minute timeout to prevent accidental continuous watering.
+If the value is 0 or exceeds 900 seconds with `unit: "seconds"`, the Arduino defaults to a 15-minute timeout to prevent accidental continuous watering.
 
 
 Command Fields:
