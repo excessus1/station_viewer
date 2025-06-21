@@ -165,7 +165,11 @@ void setup() {
   }
   Serial.println("WiFi connected");
 
+  //======KEEP THIS DELAY BLOCK FOR NTP INIT========
+  delay(5000);
   timeClient.begin();
+  delay(2000);
+  //======END OF DELAY BLOCK=========
   if (timeClient.forceUpdate()) {
     timeSynced = true;
     Serial.println("NTP time synchronized");

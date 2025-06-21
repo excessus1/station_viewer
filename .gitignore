@@ -1,2 +1,3 @@
 node_modules/
-arduino/WiFiCredentials.h
+arduino/lib/WiFiCredentials.h
+.next/
