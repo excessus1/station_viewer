@@ -1,16 +1,16 @@
-# TODO: 
+# TODO
 
 ---
 System Messaging Completion Checklist
 
-- [ ] Refactor water valve control message to be:
+- [x] Refactor water valve control message to include full metadata
 
-Refactor front end and back end to accept the now fully defined control message system as described in README.md
+The front end and Arduino firmware now use the unified control message structure described in README.md.
 
 ---
 ## 🧪 MQTT Message Refactor (Codex)
 
-- [ ] Refactor water valve control message from the webpage to be:
+- [x] Manual valve commands from the webpage publish messages like:
 
 ```json
 {
@@ -19,9 +19,10 @@ Refactor front end and back end to accept the now fully defined control message 
   "sensor_id": "excessus-home_garden-hydrant_uno-r4-wifi-primary_valve-state_BeetsTomatoes",
   "sensor_type": "valve-state",
   "unit": "seconds",
-  "value": <value>,
+  "value": 300,
   "command": "open",
   "source": "manual_override",
-  "requestor_id": "webpage_IP",
+  "requestor_id": "web_app",
   "timestamp": 162
 }
+```

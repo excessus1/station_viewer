@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Slider } from "@/components/ui/slider"
 import type { SensorReading } from "@/types/station"
+import type { ControlMessage } from "@/types/control"
 import { mqttClient } from "@/lib/mqttClient"
 import {
   groupSensorsPhysically,
@@ -47,16 +48,24 @@ export default function StationViewer() {
 
 
   const handleValveCommand = (
-    id: string,
+    sensor: SensorReading,
     action: "open" | "close"
   ) => {
-    const duration = valveDurations[id] ?? 300
-    const payload =
-      action === "open"
-        ? { command: "open", duration }
-        : { command: "close" }
+    const duration = valveDurations[sensor.sensor_id] ?? 300
+    const payload: ControlMessage = {
+      station: sensor.station,
+      controller: sensor.controller,
+      sensor_id: sensor.sensor_id,
+      sensor_type: sensor.sensor_type,
+      unit: action === "open" ? "seconds" : "state",
+      value: action === "open" ? duration : 0,
+      command: action,
+      source: "manual_override",
+      requestor_id: "web_app",
+      timestamp: Math.floor(Date.now() / 1000),
+    }
     mqttClient.publish(
-      `controlcore/command/${id}`,
+      `controlcore/command/${sensor.sensor_id}`,
       JSON.stringify(payload)
     )
   }
@@ -244,14 +253,14 @@ export default function StationViewer() {
                     </div>
                     <div className="flex gap-2">
                       <Button
-                        onClick={() => handleValveCommand(sensor.sensor_id, "open")}
+                        onClick={() => handleValveCommand(sensor, "open")}
                         disabled={!isConnected}
                       >
                         Open
                       </Button>
                       <Button
                         variant="secondary"
-                        onClick={() => handleValveCommand(sensor.sensor_id, "close")}
+                        onClick={() => handleValveCommand(sensor, "close")}
                         disabled={!isConnected}
                       >
                         Close
