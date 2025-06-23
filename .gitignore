@@ -1,3 +1,4 @@
 node_modules/
 arduino/lib/WiFiCredentials.h
 .next/
+logs/
